@@ -1,0 +1,56 @@
+name: Compiler HTML en EXE Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Préparer l'app Electron
+        shell: bash
+        run: |
+          mkdir ../appbuild
+          cp -r ./* ../appbuild/
+          rm -rf ../appbuild/.github
+          cat > ../appbuild/main.js <<'EOF'
+          const { app, BrowserWindow } = require('electron');
+          app.whenReady().then(() => {
+            const w = new BrowserWindow({ width: 1200, height: 800, autoHideMenuBar: true });
+            w.loadFile('index.html');
+          });
+          app.on('window-all-closed', () => app.quit());
+          EOF
+          cat > ../appbuild/package.json <<'EOF'
+          {
+            "name": "monapp",
+            "version": "1.0.0",
+            "description": "Application HTML",
+            "author": "Sossouappolinaire",
+            "main": "main.js",
+            "build": {
+              "appId": "com.monapp.exe",
+              "win": { "target": "portable" }
+            }
+          }
+          EOF
+      - name: Installer et compiler
+        shell: bash
+        working-directory: ../appbuild
+        run: |
+          npm install --save-dev electron electron-builder
+          npx electron-builder --win portable
+      - name: Copier le résultat
+        shell: bash
+        run: |
+          mkdir out
+          cp ../appbuild/dist/*.exe out/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: application-windows
+          path: out/*.exe
